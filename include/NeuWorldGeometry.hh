@@ -12,7 +12,7 @@
 #include "NeuEarthFields.hh"
 #include "NeuGeometryMessenger.hh"
 
-namespace NeuFlux
+namespace NeuDetector
 {
 
 	/*!
