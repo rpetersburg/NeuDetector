@@ -15,21 +15,20 @@
 #include "G4SDManager.hh"
 
 
-NeuFlux::NeuWorldGeometry::NeuWorldGeometry() : G4VUserDetectorConstruction(), fDetector(NULL), 
-												fWorldX(50.0),fWorldY(50.0),fWorldZ(50.0),
-												fRockX(fWorldX),fRockY(39.0),fRockZ(fWorldZ),
-												fConcreteX(20.0),fConcreteY(5.0),fConcreteZ(20.0),
-												fDetectorLength(3.0),fDetectorDiameter(0.05)
+NeuDetector::NeuWorldGeometry::NeuWorldGeometry() : G4VUserDetectorConstruction(), fDetector(NULL),
+												fWorldX(500.0*cm),fWorldY(50.0*cm),fWorldZ(100.0*cm),
+												fPanelX(304.8*cm),fPanelY(10.2*cm),fPanelZ(70.0*cm),
+												fDetectorLength(3.0*m),fDetectorInnerDiameter(5.0*cm),fDetectorOuterDiameter(5.1*cm)
 {
-	fMessenger = new NeuFlux::NeuGeometryMessenger(this);	
+	fMessenger = new NeuGeometryMessenger(this);
 }
 
-NeuFlux::NeuWorldGeometry::~NeuWorldGeometry()
+NeuDetector::NeuWorldGeometry::~NeuWorldGeometry()
 {
 	delete fMessenger;
 }
 
-G4VPhysicalVolume* NeuFlux::NeuWorldGeometry::Construct(){
+G4VPhysicalVolume* NeuDetector::NeuWorldGeometry::Construct(){
 
 	if (fPhysiWorld) 
 	{
@@ -41,28 +40,12 @@ G4VPhysicalVolume* NeuFlux::NeuWorldGeometry::Construct(){
 	return ConstructWorld();
 }
 
-/*
-G4int FindVertexVolumeIndex(const G4LogicalVolume * vertexLogicalVolume)
-{
-	return 0;
-}
-G4bool NeuFlux::NeuWorldGeometry::StoreEnteringParticleInfo(G4VPhysicalVolume * postVolume)
-{
-	return false;
-}
-G4int NeuFlux::NeuWorldGeometry::FindPhysicalVolumeIndex(G4VPhysicalVolume * whichVolume)
-{
-	return 0;
-}
-*/
-
-G4VPhysicalVolume* NeuFlux::NeuWorldGeometry::ConstructWorld()
+G4VPhysicalVolume* NeuDetector::NeuWorldGeometry::ConstructWorld()
 {
 	G4NistManager* man = G4NistManager::Instance();
 	fLogicWorld = new G4LogicalVolume(
 						new G4Box("World",
-	                    fWorldX*0.5,
-	                    fWorldY*0.5, fWorldZ*0.5),
+	                    fWorldX*0.5, fWorldY*0.5, fWorldZ*0.5),
 	                man->FindOrBuildMaterial("G4_AIR"),
 	                "World");
 
@@ -71,57 +54,64 @@ G4VPhysicalVolume* NeuFlux::NeuWorldGeometry::ConstructWorld()
 					fLogicWorld, 
 					"World", 
 					0, false, 0);
-	ConstructRock();
+	(new NeuPanel())->GetPhysicalVolume();
+	ConstructPanel("LowerPanel", 0.0);
+	ConstructPanel("UpperPanel", 40.0*cm);
 	return fPhysiWorld;
 }
-G4VPhysicalVolume* NeuFlux::NeuWorldGeometry::ConstructRock()
-{
-	fLogicRock = new G4LogicalVolume(
-						new G4Box("Rock",
-	                    fRockX*0.5,
-	                    fRockY*0.5, fRockZ*0.5),
-	                new NeuRock(),
-	                "Rock");
 
-	fPhysiRock = new G4PVPlacement(0,
-					G4ThreeVector(   0.0,(fRockY-fWorldY)*0.5, 0.0 ),
-					fLogicRock, 
-					"Rock", 
-					fLogicWorld, 
-					false, 
-					0);
-	ConstructConcrete();
-	return fPhysiRock;
-}
-G4VPhysicalVolume* NeuFlux::NeuWorldGeometry::ConstructConcrete()
+G4VPhysicalVolume* NeuDetector::NeuWorldGeometry::ConstructPanel(std::string name, double height)
 {
 	G4NistManager* man = G4NistManager::Instance();
-	fLogicConcrete = new G4LogicalVolume(
-						new G4Box("Concrete",
-	                    fConcreteX*0.5,
-	                    fConcreteY*0.5, fConcreteZ*0.5),
-	                //new NeuConcrete(),
-						man->FindOrBuildMaterial("G4_CONCRETE"),
-	                "Concrete");
 
-	fPhysiConcrete = new G4PVPlacement(0,
-					G4ThreeVector(  0.0,(fConcreteY-fRockY)*0.5,  0.0 ),
-					fLogicConcrete, 
-					"Concrete", 
-					fLogicRock, 
-					false, 
-					0);
-	ConstructDetector();
-	return fPhysiConcrete;
+	fLogicPanel = new G4LogicalVolume(
+						new G4Box(name,
+								fPanelX*0.5, fPanelY*0.5, fPanelZ*0.5),
+						man->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE"),
+						name);
+	fPhysiPanel = new G4PVPlacement(
+						0,
+						G4ThreeVector( 0.0, height, 0.0 ),
+						fLogicPanel,
+						name,
+						fLogicWorld,
+						false,
+						0);
+	return fPhysiPanel;
 }
-G4VPhysicalVolume* NeuFlux::NeuWorldGeometry::ConstructDetector()
+
+G4VPhysicalVolume* NeuDetector::NeuWorldGeometry::ConstructShell(std::string name, double zDistance)
+{
+	G4NistManager* man = G4NistManager::Instance();
+
+	fLogicShell = new G4LogicalVolume(
+						new G4Tubs("Shell",
+									fDetectorInnerDiameter*0.5, fDetectorOuterDiameter*0.5,
+									fDetectorLength*0.5,
+									0, 6.282),
+						man->FindOrBuildMaterial("G4_Ni"),
+						name);
+
+	fPhysiShell = new G4PVPlacement(
+						0,
+						G4ThreeVector( 0.0, fPanelY, zDistance ),
+						fLogicShell,
+						name,
+						fLogicWorld,
+						false,
+						0);
+
+	return fPhysiShell;
+}
+
+G4VPhysicalVolume* NeuDetector::NeuWorldGeometry::ConstructDetector(std::string name, double zDistance)
 {
 	G4NistManager* man = G4NistManager::Instance();
 
 	fLogicDetector = new G4LogicalVolume(
 						new G4Tubs("Detector",
 						0,
-						fDetectorDiameter*0.5,
+						fDetectorInnerDiameter*0.5,
 	                    fDetectorLength*0.5,
 						0,
 						6.282),
@@ -129,10 +119,10 @@ G4VPhysicalVolume* NeuFlux::NeuWorldGeometry::ConstructDetector()
 	                "Detector");
 
 	fPhysiDetector = new G4PVPlacement(0,
-					G4ThreeVector( 0.0,(fDetectorLength-fConcreteY)*0.5 ,   0.0 ),
+					G4ThreeVector( 0.0, 0.0 , 0.0 ),
 					fLogicDetector, 
 					"Detector", 
-					fLogicConcrete, 
+					fLogicWorld,
 					false, 
 					0);
 
@@ -141,31 +131,22 @@ G4VPhysicalVolume* NeuFlux::NeuWorldGeometry::ConstructDetector()
 	G4SDManager *SDman = G4SDManager::GetSDMpointer();
 	if(!fDetector)
 	{
-		fDetector = new NeuFlux::NeuDetector();	
+		fDetector = new NeuDetector::NeuDetector();
 		SDman->AddNewDetector(fDetector);	
 		fLogicDetector->SetSensitiveDetector(fDetector);
 	}
 	return fPhysiDetector;
 }
 
-void NeuFlux::NeuWorldGeometry::PrintGeometry()
+void NeuDetector::NeuWorldGeometry::PrintGeometry()
 {
 	G4cout<<"World Geometry: "
 		 <<fWorldX<<" , "		
 		 <<fWorldY<<" , "			
 		 <<fWorldZ<<std::endl;			
 
-	G4cout<<"Rock Geometry: "
-		 <<fRockX<<" , "			
-		 <<fRockY<<" , "			
-		 <<fRockZ<<std::endl;		
-
-	G4cout<<"Concrete Geometry: "
-		 <<fConcreteX<<" , "		
-		 <<fConcreteY<<" , "		
-		 <<fConcreteZ<<std::endl;	
 	G4cout<<"Detector Geometry: "
 		 <<fDetectorLength<<" , "		
-		 <<fDetectorDiameter<<std::endl;		
+		 <<fDetectorOuterDiameter<<std::endl;
 }
 
